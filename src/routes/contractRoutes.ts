@@ -120,6 +120,31 @@ contractRouter.get('/:id/status', async (req, res) => {
   }
 });
 
+
+contractRouter.get('/:id/pdf', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [[contract]] = await pool.query<ContractRow[]>('SELECT id, title, final_pdf_data FROM contracts WHERE id = ?', [id]);
+
+    if (!contract) {
+      return res.status(404).json({ error: 'Contract not found' });
+    }
+
+    if (!contract.final_pdf_data) {
+      return res.status(404).json({ error: 'Final PDF not available yet' });
+    }
+
+    return res.json({
+      contractId: contract.id,
+      title: contract.title,
+      pdfBase64: contract.final_pdf_data
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Failed to fetch contract PDF' });
+  }
+});
+
 contractRouter.get('/:id/public/:token', async (req, res) => {
   try {
     const { id, token } = req.params;

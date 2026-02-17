@@ -117,7 +117,21 @@ Response includes contract status + signer progress + `finalPdfAvailable`.
 
 Verifies `contractId + token` and returns signer-specific details for the sign page.
 
-### 6) Submit signature
+### 6) Get final contract PDF (base64)
+`GET /api/contracts/:id/pdf`
+
+Returns the completed contract PDF as base64 so frontend can download/save it.
+
+Example response:
+```json
+{
+  "contractId": "a77cfe1d-ba11-4075-a5ad-3a234f85f351",
+  "title": "...",
+  "pdfBase64": "JVBERi0xLjQK..."
+}
+```
+
+### 7) Submit signature
 `POST /api/contracts/:id/sign/:token`
 
 Body:
@@ -192,6 +206,11 @@ curl -X POST http://localhost:4000/api/contracts/<CONTRACT_ID>/sign/<TOKEN> \
 Status:
 ```bash
 curl http://localhost:4000/api/contracts/<CONTRACT_ID>/status
+```
+
+Get final PDF (base64):
+```bash
+curl http://localhost:4000/api/contracts/<CONTRACT_ID>/pdf
 ```
 
 ## Security notes
