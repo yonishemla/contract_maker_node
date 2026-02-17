@@ -7,7 +7,7 @@ Local-only backend for contract generation, distribution, signing, and final PDF
 - MySQL (`mysql2/promise`)
 - OpenAI SDK (server-side key)
 - `nodemailer` (SMTP or dev console mode)
-- `pdf-lib` for final signed PDF
+- `pdf-lib` + `@pdf-lib/fontkit` for final signed PDF (Hebrew-capable with TTF)
 - `zod` validation + `uuid` IDs
 
 ## Setup
@@ -37,6 +37,13 @@ npm run ensure:tables
 - `npm run build` - compile TypeScript to `dist/`
 - `npm start` - run compiled app
 - `npm run ensure:tables` - create tables if missing
+
+
+### Hebrew PDF font configuration
+- To avoid `WinAnsi cannot encode` errors for Hebrew, the PDF service tries to load a Unicode TTF font.
+- It searches in this order: `PDF_FONT_PATH`, local `assets/fonts/` candidates, then common system fonts.
+- Recommended: set `PDF_FONT_PATH` in `.env` to a Hebrew-capable `.ttf` (for example DejaVu Sans / Noto Sans Hebrew).
+- If no Unicode font is found, generation still completes with a safe fallback that replaces unsupported glyphs instead of crashing.
 
 ## API
 

@@ -17,7 +17,8 @@ const envSchema = z.object({
   SMTP_PORT: z.coerce.number().optional(),
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
-  SMTP_FROM: z.string().default('QuickSign <no-reply@local>')
+  SMTP_FROM: z.string().default('QuickSign <no-reply@local>'),
+  PDF_FONT_PATH: z.string().optional()
 });
 
 export const env = envSchema.parse(process.env);

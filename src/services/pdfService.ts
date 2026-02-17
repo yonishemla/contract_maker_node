@@ -1,4 +1,8 @@
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import fs from 'fs';
+import path from 'path';
+import fontkit from '@pdf-lib/fontkit';
+import { PDFDocument, StandardFonts, rgb, type PDFFont } from 'pdf-lib';
+import { env } from '../config';
 
 type SignerForPdf = {
   signerIndex: number;
@@ -21,7 +25,7 @@ const wrapText = (text: string, maxChars = 95) => {
     for (const word of words) {
       const next = current ? `${current} ${word}` : word;
       if (next.length > maxChars) {
-        lines.push(current);
+        if (current) lines.push(current);
         current = word;
       } else {
         current = next;
@@ -32,6 +36,64 @@ const wrapText = (text: string, maxChars = 95) => {
   return lines;
 };
 
+const resolveFontCandidates = () => {
+  const fromEnv = env.PDF_FONT_PATH?.trim();
+  const localCandidates = [
+    path.resolve(process.cwd(), 'assets/fonts/NotoSansHebrew-Regular.ttf'),
+    path.resolve(process.cwd(), 'assets/fonts/DejaVuSans.ttf')
+  ];
+
+  const systemCandidates = process.platform === 'win32'
+    ? [
+        'C:/Windows/Fonts/arial.ttf',
+        'C:/Windows/Fonts/calibri.ttf',
+        'C:/Windows/Fonts/segoeui.ttf'
+      ]
+    : [
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+        '/usr/share/fonts/truetype/freefont/FreeSans.ttf',
+        '/System/Library/Fonts/Supplemental/Arial Unicode.ttf'
+      ];
+
+  return [fromEnv, ...localCandidates, ...systemCandidates].filter((x): x is string => Boolean(x));
+};
+
+const loadUnicodeFont = async (pdfDoc: PDFDocument): Promise<PDFFont | null> => {
+  const candidates = resolveFontCandidates();
+  for (const candidate of candidates) {
+    try {
+      if (!fs.existsSync(candidate)) {
+        continue;
+      }
+      const bytes = fs.readFileSync(candidate);
+      pdfDoc.registerFontkit(fontkit);
+      const embedded = await pdfDoc.embedFont(bytes, { subset: true });
+      console.log(`[PDF] Using Unicode font: ${candidate}`);
+      return embedded;
+    } catch (error) {
+      console.warn(`[PDF] Failed loading font '${candidate}':`, error);
+    }
+  }
+
+  return null;
+};
+
+const safeDraw = (
+  page: ReturnType<PDFDocument['addPage']>,
+  font: PDFFont,
+  line: string,
+  x: number,
+  y: number,
+  size: number
+) => {
+  try {
+    page.drawText(line, { x, y, size, font, color: rgb(0, 0, 0) });
+  } catch {
+    const asciiFallback = line.replace(/[^\x20-\x7E]/g, '?');
+    page.drawText(asciiFallback, { x, y, size, font, color: rgb(0, 0, 0) });
+  }
+};
+
 export const generateFinalContractPdfBase64 = async (input: {
   title: string;
   contractText: string;
@@ -39,7 +101,10 @@ export const generateFinalContractPdfBase64 = async (input: {
 }) => {
   const pdfDoc = await PDFDocument.create();
   let page = pdfDoc.addPage([595.28, 841.89]);
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+  const unicodeFont = await loadUnicodeFont(pdfDoc);
+  const font = unicodeFont ?? await pdfDoc.embedFont(StandardFonts.Helvetica);
+
   let y = 800;
 
   const drawLine = (line: string, size = 11) => {
@@ -47,7 +112,7 @@ export const generateFinalContractPdfBase64 = async (input: {
       page = pdfDoc.addPage([595.28, 841.89]);
       y = 800;
     }
-    page.drawText(line, { x: 40, y, size, font, color: rgb(0, 0, 0) });
+    safeDraw(page, font, line, 40, y, size);
     y -= size + 5;
   };
 
