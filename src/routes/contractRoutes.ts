@@ -231,7 +231,7 @@ contractRouter.post('/:id/sign/:token', async (req, res) => {
         await conn.execute('UPDATE contracts SET status = ?, final_pdf_data = ? WHERE id = ?', ['completed', finalPdfBase64, id]);
         completed = true;
 
-        const recipients = finalizedSigners.map((s) => ({ email: s.email, name: s.name }));
+        const recipients:any = finalizedSigners.map((s) => ({ email: s.email, name: s.name }));
         if (contract.creator_email) {
           recipients.push({ email: contract.creator_email });
         }
