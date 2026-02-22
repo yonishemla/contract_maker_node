@@ -8,6 +8,11 @@ export const aiGenerateSchema = z.object({
   signers: z.array(z.object({ name: z.string().min(1) })).min(1)
 });
 
+export const aiGenerateLegacySchema = z.object({
+  title: z.string().min(1),
+  contractText: z.string().min(10)
+});
+
 export const createContractSchema = z.object({
   title: z.string().min(1),
   contractText: z.string().min(1),
