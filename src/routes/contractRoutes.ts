@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { RowDataPacket } from 'mysql2';
 import { v4 as uuidv4 } from 'uuid';
 import { ZodError } from 'zod';
+import { env } from '../config';
 import { pool } from '../db';
 import { sendFinalContractEmail, sendSigningLinkEmail } from '../services/mailService';
 import { generateFinalContractPdfBase64 } from '../services/pdfService';
@@ -36,6 +37,8 @@ contractRouter.post('/', async (req, res) => {
     const payload = createContractSchema.parse(req.body);
     const contractId = uuidv4();
 
+    const signingLinks: { index: number; name: string; email: string; url: string }[] = [];
+
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
@@ -45,12 +48,21 @@ contractRouter.post('/', async (req, res) => {
         [contractId, payload.creatorEmail ?? null, payload.language, payload.title, payload.contractText]
       );
 
+
       for (const [index, signer] of payload.signers.entries()) {
+        const token = crypto.randomBytes(32).toString('hex');
         await conn.execute(
           `INSERT INTO signers (id, contract_id, signer_index, name, email, token)
            VALUES (?, ?, ?, ?, ?, ?)`,
-          [uuidv4(), contractId, index + 1, signer.name, signer.email, crypto.randomBytes(32).toString('hex')]
+          [uuidv4(), contractId, index + 1, signer.name, signer.email, token]
         );
+
+        signingLinks.push({
+          index: index + 1,
+          name: signer.name,
+          email: signer.email,
+          url: `${env.PUBLIC_WEB_BASE_URL}/sign/${contractId}/${token}`
+        });
       }
 
       await conn.commit();
@@ -61,7 +73,7 @@ contractRouter.post('/', async (req, res) => {
       conn.release();
     }
 
-    return res.status(201).json({ contractId });
+    return res.status(201).json({ contractId, signingLinks });
   } catch (error) {
     if (error instanceof ZodError) {
       return res.status(400).json({ error: error.flatten() });
@@ -180,6 +192,8 @@ contractRouter.post('/:id/sign/:token', async (req, res) => {
   try {
     const payload = signContractSchema.parse(req.body);
     const { id, token } = req.params;
+
+    const signingLinks: { index: number; name: string; email: string; url: string }[] = [];
 
     const conn = await pool.getConnection();
     let completed = false;
