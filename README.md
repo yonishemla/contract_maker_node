@@ -83,8 +83,8 @@ Body:
   "language": "en",
   "creatorEmail": "creator@example.com",
   "signers": [
-    { "name": "Alice", "email": "alice@example.com" },
-    { "name": "Bob", "email": "bob@example.com" }
+    { "name": "Alice", "idNumber": "123456789" },
+    { "name": "Bob", "idNumber": "987654321" }
   ]
 }
 ```
@@ -150,7 +150,7 @@ Action:
   - generates final A4 PDF with contract + signatures
   - stores PDF in `contracts.final_pdf_data` as **base64 without prefix**
   - updates status to `completed`
-  - emails final PDF to all signers and creator (if exists)
+  - emails final PDF to available signer/creator emails (if provided)
 
 Response:
 ```json
@@ -178,10 +178,9 @@ curl -X POST http://localhost:4000/api/contracts \
     "title":"הסכם שירותים",
     "contractText":"טקסט חוזה...",
     "language":"he",
-    "creatorEmail":"owner@example.com",
     "signers":[
-      {"name":"יוסי","email":"yossi@example.com"},
-      {"name":"דנה","email":"dana@example.com"}
+      {"name":"יוסי","idNumber":"201509619"},
+      {"name":"דנה","idNumber":"123456789"}
     ]
   }'
 ```
