@@ -21,7 +21,8 @@ export const createContractSchema = z.object({
   signers: z.array(
     z.object({
       name: z.string().min(1),
-      email: z.string().email()
+      idNumber: z.string().min(1),
+      email: z.string().email().optional()
     })
   ).min(1)
 });

@@ -23,7 +23,8 @@ type SignerRow = RowDataPacket & {
   contract_id: string;
   signer_index: number;
   name: string;
-  email: string;
+  id_number: string;
+  email: string | null;
   token: string;
   signed_at: string | null;
   signature_data_url: string | null;
@@ -37,7 +38,7 @@ contractRouter.post('/', async (req, res) => {
     const payload = createContractSchema.parse(req.body);
     const contractId = uuidv4();
 
-    const signingLinks: { index: number; name: string; email: string; url: string }[] = [];
+    const signingLinks: { index: number; name: string; idNumber: string; url: string }[] = [];
 
     const conn = await pool.getConnection();
     try {
@@ -52,15 +53,15 @@ contractRouter.post('/', async (req, res) => {
       for (const [index, signer] of payload.signers.entries()) {
         const token = crypto.randomBytes(32).toString('hex');
         await conn.execute(
-          `INSERT INTO signers (id, contract_id, signer_index, name, email, token)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          [uuidv4(), contractId, index + 1, signer.name, signer.email, token]
+          `INSERT INTO signers (id, contract_id, signer_index, name, id_number, email, token)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [uuidv4(), contractId, index + 1, signer.name, signer.idNumber, signer.email ?? null, token]
         );
 
         signingLinks.push({
           index: index + 1,
           name: signer.name,
-          email: signer.email,
+          idNumber: signer.idNumber,
           url: `${env.PUBLIC_WEB_BASE_URL}/sign/${contractId}/${token}`
         });
       }
@@ -95,6 +96,9 @@ contractRouter.post('/:id/send', async (req, res) => {
     await pool.execute('UPDATE contracts SET status = ? WHERE id = ?', ['sent', id]);
 
     for (const signer of signers) {
+      if (!signer.email) {
+        continue;
+      }
       await sendSigningLinkEmail({ email: signer.email, name: signer.name }, id, signer.token);
     }
 
@@ -114,7 +118,7 @@ contractRouter.get('/:id/status', async (req, res) => {
     }
 
     const [signers] = await pool.query<SignerRow[]>(
-      'SELECT signer_index, name, email, signed_at FROM signers WHERE contract_id = ? ORDER BY signer_index ASC',
+      'SELECT signer_index, name, id_number, email, signed_at FROM signers WHERE contract_id = ? ORDER BY signer_index ASC',
       [id]
     );
 
@@ -124,7 +128,7 @@ contractRouter.get('/:id/status', async (req, res) => {
       creatorEmail: contract.creator_email,
       status: contract.status,
       finalPdfAvailable: Boolean(contract.final_pdf_data),
-      signers: signers.map((s) => ({ index: s.signer_index, name: s.name, email: s.email, signed_at: s.signed_at }))
+      signers: signers.map((s) => ({ index: s.signer_index, name: s.name, idNumber: s.id_number, email: s.email, signed_at: s.signed_at }))
     });
   } catch (error) {
     console.error(error);
@@ -177,6 +181,7 @@ contractRouter.get('/:id/public/:token', async (req, res) => {
       signer: {
         index: signer.signer_index,
         name: signer.name,
+        idNumber: signer.id_number,
         email: signer.email,
         signed_at: signer.signed_at
       },
@@ -192,8 +197,6 @@ contractRouter.post('/:id/sign/:token', async (req, res) => {
   try {
     const payload = signContractSchema.parse(req.body);
     const { id, token } = req.params;
-
-    const signingLinks: { index: number; name: string; email: string; url: string }[] = [];
 
     const conn = await pool.getConnection();
     let completed = false;
@@ -236,6 +239,7 @@ contractRouter.post('/:id/sign/:token', async (req, res) => {
           signers: finalizedSigners.map((s) => ({
             signerIndex: s.signer_index,
             name: s.name,
+            idNumber: s.id_number,
             email: s.email,
             signedAt: s.signed_at,
             signatureDataUrl: s.signature_data_url
@@ -245,11 +249,15 @@ contractRouter.post('/:id/sign/:token', async (req, res) => {
         await conn.execute('UPDATE contracts SET status = ?, final_pdf_data = ? WHERE id = ?', ['completed', finalPdfBase64, id]);
         completed = true;
 
-        const recipients:any = finalizedSigners.map((s) => ({ email: s.email, name: s.name }));
+        const recipients = finalizedSigners
+          .filter((s) => Boolean(s.email))
+          .map((s) => ({ email: s.email as string, name: s.name }));
         if (contract.creator_email) {
-          recipients.push({ email: contract.creator_email });
+          recipients.push({ email: contract.creator_email, name: 'Creator' });
         }
-        await sendFinalContractEmail(recipients, contract.title, finalPdfBase64, id);
+        if (recipients.length > 0) {
+          await sendFinalContractEmail(recipients, contract.title, finalPdfBase64, id);
+        }
       }
 
       await conn.commit();

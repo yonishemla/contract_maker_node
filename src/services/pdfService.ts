@@ -7,7 +7,8 @@ import { env } from '../config';
 type SignerForPdf = {
   signerIndex: number;
   name: string;
-  email: string;
+  idNumber: string;
+  email: string | null;
   signedAt: string | null;
   signatureDataUrl: string | null;
 };
@@ -127,7 +128,12 @@ export const generateFinalContractPdfBase64 = async (input: {
   drawLine('Signed by:', 13);
 
   for (const signer of input.signers) {
-    drawLine(`${signer.signerIndex}. ${signer.name} (${signer.email}) - ${signer.signedAt ?? 'Pending'}`);
+    const signerMeta = [
+      signer.idNumber ? `ID: ${signer.idNumber}` : null,
+      signer.email ? `Email: ${signer.email}` : null
+    ].filter(Boolean).join(', ');
+
+    drawLine(`${signer.signerIndex}. ${signer.name}${signerMeta ? ` (${signerMeta})` : ''} - ${signer.signedAt ?? 'Pending'}`);
 
     if (signer.signatureDataUrl?.startsWith('data:image/png;base64,')) {
       try {
